@@ -721,3 +721,139 @@ root@master01:~/repos/ub18k8s/manifest# kubectl exec -it nginx2 -- ls -l /proc/1
 lrwxrwxrwx    1 root     root             0 Mar 27 04:42 /proc/1/cwd -> /tmp
 root@master01:~/repos/ub18k8s/manifest#
 ```
+## volumeについて(emptyDir)
+
+Volumeを作成してPodから書き込む
+```
+root@master01:~/repos/ub18k8s/manifest# cat -n pod-vol.yaml
+     1  apiVersion: v1
+     2  kind: Pod
+     3  metadata:
+     4    name: pod-cenos-vol
+     5  spec:
+     6    containers:
+     7    - name: date-centos
+     8      image: alpine
+     9      command: ["sh", "-c"]
+    10      args:
+    11      - |
+    12        exec >> /var/log/date-tail/output.log
+    13        echo -n 'Started at: '
+    14        while true; do date; sleep 3; done
+    15      volumeMounts:                   # Containerのvolume mount
+    16      - name: logdate-vol             # mountするVolume名
+    17        mountPath: /var/log/date-tail # Container内のmount場所
+    18    volumes:
+    19    - name: logdate-vol               # mountするVolume名
+    20      emptyDir:                       # Podが生きている間は保持される
+    21    terminationGracePeriodSeconds: 0  # PodにSIGKILLが送信されるまでの猶予
+    22
+root@master01:~/repos/ub18k8s/manifest#
+```
+Pod作成
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl apply -f pod-vol.yaml
+root@master01:~/repos/ub18k8s/manifest# kubectl get pod -o wide
+NAME            READY   STATUS    RESTARTS   AGE    IP              NODE     NOMINATED NODE   READINESS GATES
+pod-cenos-vol   1/1     Running   0          3m8s   10.100.140.66   node02   <none>           <none>
+root@master01:~/repos/ub18k8s/manifest#
+```
+Pod内での出力を確認する。
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it pod-cenos-vol -- tail -f /var/log/date-tail/output.log
+Fri Mar 27 05:37:46 UTC 2020
+Fri Mar 27 05:37:49 UTC 2020
+Fri Mar 27 05:37:52 UTC 2020
+Fri Mar 27 05:37:55 UTC 2020
+Fri Mar 27 05:37:58 UTC 2020
+Fri Mar 27 05:38:01 UTC 2020
+Fri Mar 27 05:38:04 UTC 2020
+Fri Mar 27 05:38:07 UTC 2020
+Fri Mar 27 05:38:10 UTC 2020
+Fri Mar 27 05:38:13 UTC 2020
+Fri Mar 27 05:38:17 UTC 2020
+^Ccommand terminated with exit code 130
+root@master01:~/repos/ub18k8s/manifest#
+```
+
+## volumeについて(hostPath)
+volumeを作成してPodから書き込むところは同じ
+```
+root@master01:~/repos/ub18k8s/manifest# cat -n pod-pvc.yaml
+     1  apiVersion: v1
+     2  kind: Pod
+     3  metadata:
+     4    name: pod-cenos-pvc
+     5  spec:
+     6    containers:
+     7    - name: date-centos-pvc
+     8      image: alpine
+     9      command: ["sh", "-c"]
+    10      args:
+    11      - |
+    12        exec >> /var/log/date-tail/output.log
+    13        echo -n 'Started at: '
+    14        while true; do date; sleep 3; done
+    15      volumeMounts:                   # Containerのvolume mount
+    16      - name: logdate-vol             # mountするVolume名
+    17        mountPath: /var/log/date-tail # Container内のmount場所
+    18    volumes:
+    19    - name: logdate-vol               # mountするVolume名
+    20      hostPath:                       #
+    21        path: /var/lib/docker/output  # ホストの保存場所
+    22    terminationGracePeriodSeconds: 0  # PodにSIGKILLが送信されるまでの猶予
+    23
+root@master01:~/repos/ub18k8s/manifest#
+```
+Podを作成してデプロイ先ノードを確認する。
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl apply -f pod-pvc.yaml
+pod/pod-cenos-pvc created
+root@master01:~/repos/ub18k8s/manifest# kubectl get pod -o wide
+NAME            READY   STATUS    RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
+pod-cenos-pvc   1/1     Running   0          19s   10.100.140.67   node02   <none>           <none>
+root@master01:~/repos/ub18k8s/manifest#
+```
+ノード０２に作成されている。node上でtailしてみる。
+```
+root@node02:~# ll /var/lib/docker/output/
+total 12
+drwxr-xr-x  2 root root 4096 Mar 27 05:58 ./
+drwx--x--x 15 root root 4096 Mar 27 05:58 ../
+-rw-r--r--  1 root root 1172 Mar 27 06:00 output.log
+root@node02:~# tail -f  /var/lib/docker/output/output.log
+Fri Mar 27 06:00:23 UTC 2020
+Fri Mar 27 06:00:26 UTC 2020
+Fri Mar 27 06:00:29 UTC 2020
+Fri Mar 27 06:00:32 UTC 2020
+Fri Mar 27 06:00:35 UTC 2020
+Fri Mar 27 06:00:38 UTC 2020
+Fri Mar 27 06:00:41 UTC 2020
+Fri Mar 27 06:00:44 UTC 2020
+Fri Mar 27 06:00:47 UTC 2020
+Fri Mar 27 06:00:50 UTC 2020
+Fri Mar 27 06:00:53 UTC 2020
+Fri Mar 27 06:00:56 UTC 2020
+^C
+```
+Podを一度削除して再作成してみる。コンテナ上でtailしてみると保存されたファイルの続き★から書き込んでいる。
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl delete pod pod-cenos-pvc
+pod "pod-cenos-pvc" deleted
+root@master01:~/repos/ub18k8s/manifest#
+root@master01:~/repos/ub18k8s/manifest# kubectl apply -f pod-pvc.yaml
+pod/pod-cenos-pvc created
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it pod-cenos-pvc -- tail -f /var/log/date-tail/output.log
+Fri Mar 27 06:01:08 UTC 2020
+Fri Mar 27 06:01:11 UTC 2020
+Fri Mar 27 06:01:14 UTC 2020
+Fri Mar 27 06:01:17 UTC 2020
+Started at: Fri Mar 27 06:01:53 UTC 2020★
+Fri Mar 27 06:01:56 UTC 2020
+Fri Mar 27 06:01:59 UTC 2020
+Fri Mar 27 06:02:02 UTC 2020
+Fri Mar 27 06:02:05 UTC 2020
+Fri Mar 27 06:02:08 UTC 2020
+^Ccommand terminated with exit code 130
+root@master01:~/repos/ub18k8s/manifest#
+```
