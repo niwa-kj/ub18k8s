@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-cenos-vol
+spec:
+  containers:
+  - name: date-centos
+    image: alpine
+    command: ["sh", "-c"]
+    args:
+    - |
+      exec >> /var/log/date-tail/output.log
+      echo -n 'Started at: '
+      while true; do date; sleep 3; done
+    volumeMounts:                   # Containerのvolume mount
+    - name: logdate-vol             # mountするVolume名
+      mountPath: /var/log/date-tail # Container内のmount場所
+  volumes:
+  - name: logdate-vol               # mountするVolume名
+    emptyDir:                       # Podが生きている間は保持される
+  terminationGracePeriodSeconds: 0  # PodにSIGKILLが送信されるまでの猶予
+
