@@ -647,3 +647,77 @@ NAME    READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED N
 nginx   1/1     Running   0          70s   10.100.196.129   node01   <none>           <none>
 root@master01:~/manifest#
 ```
+
+## Podをもう少し詳しく
+https://cstoku.dev/posts/2018/k8sdojo-04/
+```
+root@master01:~/repos/ub18k8s/manifest# cat -n pod-nginx2.yaml
+     1  apiVersion: v1
+     2  kind: Pod
+     3  metadata:
+     4    name: nginx2
+     5  spec:
+     6    containers:
+     7    - name: nginx
+     8      image: nginx:alpine        # BusyBoxをベースとしたLinux
+     9      imagePullPolicy: Always    # 常にコンテナイメージをPullする
+    10      command: []                # コンテナで起動させたいプロセス
+    11      args: ["nginx", "-g", "daemon off;"] # コンテナ引数。commandとの違いは何か？
+    12      env:
+    13      - name: MY_NAME            # 環境変数名
+    14        value: niwa-kj           # 環境変数の値
+    15      ports:
+    16      - containerPort: 80        # 晒すポート番号
+    17        protocol: TCP            #
+    18      workingDir: /tmp           #
+    19
+root@master01:~/repos/ub18k8s/manifest#
+```
+Podを起動
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl create -f pod-nginx2.yaml
+pod/nginx2 created
+root@master01:~/repos/ub18k8s/manifest# kubectl get pod -o wide
+NAME     READY   STATUS    RESTARTS   AGE   IP               NODE     NOMINATED NODE   READINESS GATES
+nginx2   1/1     Running   0          17s   10.100.196.131   node01   <none>           <none>
+root@master01:~/repos/ub18k8s/manifest#
+```
+コンテナ引数が反映されているところ★
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it nginx2 -- ps -a
+PID   USER     TIME  COMMAND
+    1 root      0:00 nginx: master process nginx -g daemon off;★
+    6 nginx     0:00 nginx: worker process
+   67 root      0:00 ps -a
+root@master01:~/repos/ub18k8s/manifest#
+```
+環境変数との値が反映されている★
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it nginx2 -- env | grep MY
+MY_NAME=niwa-kj★
+root@master01:~/repos/ub18k8s/manifest#
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it nginx2 -- env
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+HOSTNAME=nginx2
+TERM=xterm
+MY_NAME=niwa-kj★
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_SERVICE_HOST=10.96.0.1
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_PORT_443_TCP_PORT=443
+NGINX_VERSION=1.17.9
+NJS_VERSION=0.3.9
+PKG_RELEASE=1
+HOME=/root
+root@master01:~/repos/ub18k8s/manifest#
+```
+workingDirが反映されていることろ
+```
+root@master01:~/repos/ub18k8s/manifest# kubectl exec -it nginx2 -- ls -l /proc/1/cwd
+lrwxrwxrwx    1 root     root             0 Mar 27 04:42 /proc/1/cwd -> /tmp
+root@master01:~/repos/ub18k8s/manifest#
+```
