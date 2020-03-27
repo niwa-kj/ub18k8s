@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx2
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine        # BusyBoxをベースとしたLinux
+    imagePullPolicy: Always    # 常にコンテナイメージをPullする
+    command: []                # コンテナで起動させたいプロセス
+    args: ["nginx", "-g", "daemon off;"] # コンテナ引数。commandとの違いは何か？
+    env:
+    - name: MY_NAME            # 環境変数名
+      value: niwa-kj           # 環境変数の値
+    ports:
+    - containerPort: 80        # 晒すポート番号
+      protocol: TCP            # 
+    workingDir: /tmp           # 
+
