@@ -857,8 +857,9 @@ Fri Mar 27 06:02:08 UTC 2020
 ^Ccommand terminated with exit code 130
 root@master01:~/repos/ub18k8s/manifest#
 ```
-### Proxyの内側からkubernetesを使用する。（マスタ、ノード）
+### Proxyの内側からkubernetesを使用する設定。（マスタ、ノード）
 ```
+proxyがhttpsを持っている場合は「TTPS_PROXY=https:」にする。
 root@node01:~# cat -n /etc/systemd/system/docker.service.d/http-proxy.conf
      1  [Service]
      2  Environment="HTTP_PROXY=http://username:password@proxy.hoge.co.jp:8080"
@@ -866,8 +867,11 @@ root@node01:~# cat -n /etc/systemd/system/docker.service.d/http-proxy.conf
      4  Environment="NO_PROXY=localhost,127.0.0.1,192.168.56.103,192.168.56.104,192.168.56.105"
      5
 root@node01:~#
+設定ファイルの再読み込み。
 root@node01:~# systemctl daemon-reload
+再起動
 root@node01:~# systemctl restart docker
+設定の確認
 root@node01:~# docker info
 ...中略
  HTTP Proxy: http://xxxxx:xxxxx@proxy.hoge.co.jp:8080
